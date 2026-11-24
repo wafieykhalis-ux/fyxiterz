@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="Ruang letak kod QR pembayaran">
+  <rect width="240" height="240" rx="16" fill="#ffffff"/>
+  <rect x="10" y="10" width="220" height="220" rx="12" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="10 8"/>
+
+  <!-- decorative corner markers (not a scannable code) -->
+  <g fill="none" stroke="#94a3b8" stroke-width="8">
+    <rect x="30" y="30" width="46" height="46" rx="6"/>
+    <rect x="164" y="30" width="46" height="46" rx="6"/>
+    <rect x="30" y="164" width="46" height="46" rx="6"/>
+  </g>
+
+  <g text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+    <text x="120" y="112" font-size="20" font-weight="800" fill="#dc2626">GANTI DENGAN</text>
+    <text x="120" y="140" font-size="20" font-weight="800" fill="#dc2626">QR ANDA</text>
+    <text x="120" y="166" font-size="12" fill="#64748b">Simpan QR DuitNow anda sebagai</text>
+    <text x="120" y="184" font-size="12" fill="#64748b">assets/img/my-qr.png</text>
+  </g>
+</svg>

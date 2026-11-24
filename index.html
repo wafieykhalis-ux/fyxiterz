@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FYXITERZ — Platform Top Up &amp; Cheat Game Terpercaya</title>
+  <meta name="description" content="FYXITERZ — platform top up & cheat game terpercaya. Proses instan, harga terbaik, pelayanan 24 jam." />
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <!-- live "baru beli" ticker (desktop + mobile, as on the reference) -->
+  <div class="ticker" id="ticker">
+    <div class="ticker__track" id="ticker-track"></div>
+  </div>
+
+  <main>
+    <!-- hero -->
+    <section class="section section--hero">
+      <div class="hero">
+        <span class="hero__tag">FYXITERZ • Dipercayai Ramai</span>
+        <h1 class="hero__title">TOP UP &amp; CHEAT GAME<br /><span class="accent" style="color:var(--accent)">PROSES INSTAN</span></h1>
+        <p class="hero__desc">
+          Platform top up &amp; cheat game terpercaya. Proses instan, harga terbaik,
+          pelayanan 24 jam. Key dihantar automatik ke email anda.
+        </p>
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="products.html">Lihat Semua Produk</a>
+          <a class="btn btn--ghost" href="track-order.html">Track Pesanan</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- categories -->
+    <section class="section section--hero">
+      <div class="cat-scroll" id="home-cats"></div>
+    </section>
+
+    <!-- bestsellers -->
+    <section class="section">
+      <div class="section__head">
+        <h2 class="section__title">TERLARIS</h2>
+        <a class="section__link" href="products.html?sort=bestseller">Lihat semua →</a>
+      </div>
+      <div class="product-grid" id="grid-bestseller">
+        <div class="skeleton sk-card"></div>
+        <div class="skeleton sk-card"></div>
+        <div class="skeleton sk-card"></div>
+        <div class="skeleton sk-card"></div>
+      </div>
+    </section>
+
+    <!-- featured -->
+    <section class="section">
+      <div class="section__head">
+        <h2 class="section__title">PILIHAN <span class="accent">TERPILIH</span></h2>
+        <a class="section__link" href="products.html">Lihat semua →</a>
+      </div>
+      <div class="product-grid" id="grid-featured"></div>
+    </section>
+
+    <!-- all products -->
+    <section class="section section--last">
+      <div class="section__head">
+        <h2 class="section__title">SEMUA <span class="accent">PRODUK</span></h2>
+        <span class="count-badge" id="home-count">0</span>
+      </div>
+      <div class="product-grid" id="grid-all"></div>
+    </section>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/data/seed.js"></script>
+  <script src="assets/js/supabase.js"></script>
+  <script src="assets/js/storefront.js"></script>
+  <script>
+    (function () {
+      FYX_UI.init({ active: "home" });
+
+      function renderChips(cats) {
+        var el = document.getElementById("home-cats");
+        var html = '<a class="chip is-active" href="products.html">SEMUA</a>';
+        cats.forEach(function (c) {
+          html += '<a class="chip" href="products.html?cat=' + encodeURIComponent(c.slug) + '">' +
+            FYX_UI.esc(c.name.toUpperCase()) + "</a>";
+        });
+        el.innerHTML = html;
+      }
+
+      function renderTicker(products) {
+        var track = document.getElementById("ticker-track");
+        var picks = products.slice(0, 12);
+        var items = "";
+        for (var round = 0; round < 2; round++) {
+          picks.forEach(function (p) {
+            items += '<span class="ticker__item"><span class="pulse-dot"></span> baru beli <b>' +
+              FYX_UI.esc(p.name) + "</b></span>";
+          });
+        }
+        track.innerHTML = items;
+      }
+
+      Promise.all([
+        FYX.data.getCategories(),
+        FYX.data.getProducts({ bestseller: true, limit: 8 }),
+        FYX.data.getProducts({ featured: true, limit: 8 }),
+        FYX.data.getProducts({ limit: 8 }),
+      ]).then(function (res) {
+        renderChips(res[0]);
+        var best = res[1].length ? res[1] : [];
+        document.getElementById("grid-bestseller").innerHTML = best.map(FYX_UI.card).join("");
+        document.getElementById("grid-featured").innerHTML = res[2].map(FYX_UI.card).join("");
+        document.getElementById("grid-all").innerHTML = res[3].map(FYX_UI.card).join("");
+        document.getElementById("home-count").textContent = res[3].length;
+        renderTicker(best);
+      }).catch(function (err) {
+        document.getElementById("grid-bestseller").innerHTML = FYX_UI.emptyState(err.message || "Gagal memuatkan produk.");
+      });
+    })();
+  </script>
+</body>
+</html>

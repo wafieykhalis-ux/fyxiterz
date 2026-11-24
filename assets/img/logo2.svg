@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 64" role="img" aria-label="FYXITERZ">
+  <defs>
+    <linearGradient id="fxr-bolt-w" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F43F3F"/>
+      <stop offset="100%" stop-color="#C81E1E"/>
+    </linearGradient>
+  </defs>
+  <g>
+    <rect x="2" y="4" width="56" height="56" rx="14" fill="#1F2937"/>
+    <path d="M33 12 L15 38 L27 38 L22 54 L42 28 L29 28 Z" fill="url(#fxr-bolt-w)"/>
+  </g>
+  <text x="70" y="45" font-family="'Bebas Neue','Arial Narrow',Impact,'Helvetica Neue',Arial,sans-serif"
+        font-size="46" font-weight="700" letter-spacing="1.5" fill="#FFFFFF">FYXITERZ</text>
+  <text x="71" y="58" font-family="'Bebas Neue','Arial Narrow',Impact,'Helvetica Neue',Arial,sans-serif"
+        font-size="10" font-weight="600" letter-spacing="5.5" fill="#DC2626">DIGITAL STORE</text>
+</svg>

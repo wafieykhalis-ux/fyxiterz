@@ -1,0 +1,534 @@
+/* ==========================================================================
+   FYXITERZ — owner.js
+   Owner console: statistics, products, categories, orders, customers,
+   staff, resellers, discount codes, transactions, audit logs, settings.
+
+   Every privileged write goes through the backend (Edge Functions + RLS).
+   In demo mode writes are blocked with a clear message.
+   ========================================================================== */
+
+(function () {
+  "use strict";
+  var D = FYX_DASH;
+  var S = FYX.staff;
+
+  var NAV = [
+    { key: "dashboard", label: "Dashboard", icon: "dashboard", group: "Utama" },
+    { key: "orders", label: "Pesanan", icon: "cart", group: "Operasi" },
+    { key: "products", label: "Produk", icon: "box", group: "Operasi" },
+    { key: "categories", label: "Kategori", icon: "grid", group: "Operasi" },
+    { key: "customers", label: "Pelanggan", icon: "users", group: "Operasi" },
+    { key: "resellers", label: "Reseller", icon: "shield", group: "Pasukan" },
+    { key: "staff", label: "Akaun Staf", icon: "users", group: "Pasukan" },
+    { key: "discounts", label: "Kod Diskaun", icon: "tag", group: "Kewangan" },
+    { key: "transactions", label: "Transaksi", icon: "card", group: "Kewangan" },
+    { key: "audit", label: "Audit Log", icon: "list", group: "Sistem" },
+    { key: "settings", label: "Tetapan Laman", icon: "settings", group: "Sistem" },
+  ];
+
+  var sections = {};
+  var cache = {};
+
+  /* --------------------------------------------------------------- dashboard */
+  sections.dashboard = function (el) {
+    el.insertAdjacentHTML("beforeend", D.spinner());
+    S.getStats()
+      .then(function (s) {
+        var cards =
+          D.statCard("Jumlah Jualan", D.money(s.total_sales), "card", "stat--accent") +
+          D.statCard("Jumlah Pesanan", s.total_orders, "cart") +
+          D.statCard("Pesanan Tertunda", s.pending_orders, "list") +
+          D.statCard("Pesanan Selesai", s.completed_orders, "check") +
+          D.statCard("Pelanggan", s.total_customers, "users") +
+          D.statCard("Produk", s.total_products, "box") +
+          D.statCard("Reseller", s.total_resellers, "shield") +
+          D.statCard("Stok Rendah", s.low_stock_products, "list");
+
+        var recentCols = [
+          { label: "Kod", render: function (r) { return '<strong class="mono">' + D.esc(r.order_code) + "</strong>"; } },
+          { label: "Pelanggan", render: function (r) { return D.esc(r.customer_name || r.customer_email); } },
+          { label: "Jumlah", render: function (r) { return "<strong>" + D.money(r.total) + "</strong>"; }, nowrap: true },
+          { label: "Status", render: function (r) { return D.statusPill(r.status); } },
+          { label: "Tarikh", render: function (r) { return D.date(r.created_at); }, nowrap: true },
+        ];
+
+        var topRows = (s.top_products || []).map(function (p, i) {
+          return (
+            '<div class="summary-row"><span>' + (i + 1) + ". " + D.esc(p.name) + "</span><b>" +
+            (p.sales_count || 0) + " terjual</b></div>"
+          );
+        }).join("");
+
+        var bars = "";
+        var max = Math.max.apply(null, (s.sales_by_day || []).map(function (d) { return d.total; }).concat([1]));
+        (s.sales_by_day || []).forEach(function (d) {
+          var pct = Math.round((d.total / max) * 100);
+          bars +=
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">' +
+            '<span style="font-size:11px;color:var(--db-faint);width:76px">' + D.esc(d.day) + "</span>" +
+            '<span style="flex:1;height:8px;background:rgba(255,255,255,.06);border-radius:5px;overflow:hidden">' +
+            '<span style="display:block;height:100%;width:' + pct + '%;background:var(--db-accent)"></span></span>' +
+            '<span style="font-size:11px;color:#fff;width:72px;text-align:right">' + D.money(d.total) + "</span></div>";
+        });
+
+        el.innerHTML +=
+          '<div class="stat-grid">' + cards + "</div>" +
+          '<div class="grid-2">' +
+          '<div class="panel"><div class="panel__head"><div class="panel__title">Pesanan Terkini</div>' +
+          '<button class="btn btn--ghost btn--sm" data-goto="orders">Lihat semua</button></div>' +
+          '<div class="panel__body panel__body--flush">' + D.table(recentCols, s.recent_orders, "Tiada pesanan lagi.") + "</div></div>" +
+          '<div>' +
+          '<div class="panel"><div class="panel__head"><div class="panel__title">Jualan 14 Hari</div></div>' +
+          '<div class="panel__body">' + (bars || '<div class="tbl-empty">Tiada data.</div>') + "</div></div>" +
+          '<div class="panel"><div class="panel__head"><div class="panel__title">Produk Terlaris</div></div>' +
+          '<div class="panel__body">' + (topRows || '<div class="tbl-empty">Tiada data.</div>') + "</div></div>" +
+          "</div></div>";
+
+        el.querySelectorAll("[data-goto]").forEach(function (b) {
+          b.addEventListener("click", function () { D.go(b.getAttribute("data-goto")); });
+        });
+      })
+      .catch(function (e) { el.innerHTML += '<div class="db-alert db-alert--error">' + D.esc(e.message) + "</div>"; });
+  };
+
+  /* ----------------------------------------------------------------- orders */
+  sections.orders = function (el) {
+    el.insertAdjacentHTML("beforeend", D.spinner());
+    S.getOrders().then(function (orders) {
+      cache.orders = orders;
+      var cols = [
+        { label: "Kod", render: function (r) { return '<strong class="mono">' + D.esc(r.order_code) + "</strong>"; } },
+        { label: "Pelanggan", render: function (r) { return D.esc(r.customer_name) + '<br/><span style="font-size:11px;color:var(--db-faint)">' + D.esc(r.customer_email) + "</span>"; } },
+        { label: "Jumlah", render: function (r) { return "<strong>" + D.money(r.total) + "</strong>"; }, nowrap: true },
+        { label: "Bayaran", render: function (r) { return D.statusPill(r.payment_status); } },
+        { label: "Status", render: function (r) { return D.statusPill(r.status); } },
+        { label: "Tarikh", render: function (r) { return D.dateTime(r.created_at); }, nowrap: true },
+        { label: "", render: function (r) { return '<button class="btn btn--ghost btn--sm" data-order="' + r.id + '">Urus</button>'; }, nowrap: true },
+      ];
+      el.innerHTML +=
+        '<div class="panel"><div class="panel__head"><div class="panel__title">Semua Pesanan</div>' +
+        '<button class="btn btn--ghost btn--sm" data-refresh="orders">' + "Muat semula" + "</button></div>" +
+        '<div class="panel__body panel__body--flush">' + D.table(cols, orders, "Tiada pesanan.") + "</div></div>";
+
+      el.querySelectorAll("[data-order]").forEach(function (b) {
+        b.addEventListener("click", function () { orderModal(b.getAttribute("data-order")); });
+      });
+      el.querySelector('[data-refresh="orders"]').addEventListener("click", function () { reload(el, "orders"); });
+    }).catch(function (e) { el.innerHTML += err(e); });
+  };
+
+  function orderModal(id) {
+    var o = (cache.orders || []).filter(function (x) { return x.id === id; })[0];
+    if (!o) return;
+    var items = (o.order_items || o.items || []).map(function (i) {
+      return '<div class="summary-row"><span>' + D.esc(i.product_name) + (i.variant_name ? " — " + D.esc(i.variant_name) : "") + " x" + i.quantity + "</span><b>" + D.money(i.subtotal) + "</b></div>";
+    }).join("");
+    var body =
+      '<div class="summary-row"><span>Pelanggan</span><b>' + D.esc(o.customer_name) + "</b></div>" +
+      '<div class="summary-row"><span>Email</span><b>' + D.esc(o.customer_email) + "</b></div>" +
+      '<div class="summary-row"><span>WhatsApp</span><b>' + D.esc(o.customer_whatsapp || "—") + "</b></div>" +
+      (o.game_id ? '<div class="summary-row"><span>Game ID</span><b>' + D.esc(o.game_id) + "</b></div>" : "") +
+      (o.server_id ? '<div class="summary-row"><span>Server ID</span><b>' + D.esc(o.server_id) + "</b></div>" : "") +
+      '<div class="card mt-16" style="background:var(--db-bg)"><div class="card__title">Item</div>' + items + "</div>" +
+      '<div class="summary-row summary-row--total"><span>Jumlah</span><b>' + D.money(o.total) + "</b></div>" +
+      '<div class="form-row form-row--2 mt-16">' +
+      '<div><label class="f-label">Status Pesanan</label><select class="f-select" id="om-status">' +
+      opts(["pending", "paid", "processing", "completed", "cancelled", "expired", "failed"], o.status) + "</select></div>" +
+      '<div><label class="f-label">Status Bayaran</label><select class="f-select" id="om-payment">' +
+      opts(["unpaid", "pending", "paid", "failed", "expired", "refunded"], o.payment_status) + "</select></div>" +
+      "</div>" +
+      '<div class="btn-row mt-16"><button class="btn btn--primary" id="om-save">Simpan Perubahan</button>' +
+      '<button class="btn btn--ghost" id="om-deliver">Proses Penghantaran</button></div>';
+    D.openModal("Pesanan " + o.order_code, body);
+    document.getElementById("om-save").addEventListener("click", function () {
+      S.updateOrder(o.id, {
+        status: document.getElementById("om-status").value,
+        payment_status: document.getElementById("om-payment").value,
+      }).then(function () { D.toast("Pesanan dikemas kini.", "ok"); D.closeModal(); D.go("orders"); })
+        .catch(function (e) { D.toast(e.message, "err"); });
+    });
+    document.getElementById("om-deliver").addEventListener("click", function () {
+      if (!FYX.configured) return D.toast("Demo mode: penghantaran memerlukan backend.", "err");
+      FYX.invoke("process-delivery", { order_id: o.id })
+        .then(function () { D.toast("Penghantaran diproses.", "ok"); D.closeModal(); D.go("orders"); })
+        .catch(function (e) { D.toast(e.message, "err"); });
+    });
+  }
+
+  function opts(list, sel) {
+    return list.map(function (v) { return '<option value="' + v + '"' + (v === sel ? " selected" : "") + ">" + v + "</option>"; }).join("");
+  }
+
+  /* --------------------------------------------------------------- products */
+  sections.products = function (el) {
+    el.insertAdjacentHTML("beforeend", D.spinner());
+    Promise.all([S.getProducts(), S.getCategories()]).then(function (res) {
+      var products = res[0], cats = res[1];
+      cache.products = products; cache.cats = cats;
+      var cols = [
+        { label: "Nama", render: function (r) { return '<strong>' + D.esc(r.name) + "</strong>"; } },
+        { label: "Kategori", render: function (r) { return D.esc((r.category && r.category.name) || "—"); } },
+        { label: "Harga", render: function (r) { return D.money(r.regular_price); }, nowrap: true },
+        { label: "Harga Reseller", render: function (r) { return D.money(r.reseller_price || r.regular_price * 0.7); }, nowrap: true },
+        { label: "Stok", render: function (r) { return r.stock; }, nowrap: true },
+        { label: "Flags", render: function (r) { return (r.is_bestseller ? '<span class="pill pill--active">Laris</span> ' : "") + (r.is_featured ? '<span class="pill">Pilihan</span> ' : "") + (r.is_active === false ? '<span class="pill pill--suspended">Tidak Aktif</span>' : ""); } },
+        { label: "", render: function (r) { return '<button class="btn btn--ghost btn--sm" data-edit="' + r.id + '">Edit</button> <button class="btn btn--danger btn--sm" data-del="' + r.id + '">Hapus</button>'; }, nowrap: true },
+      ];
+      el.innerHTML +=
+        '<div class="panel"><div class="panel__head"><div class="panel__title">Produk (' + products.length + ')</div>' +
+        '<button class="btn btn--primary btn--sm" id="add-product">' + D.icon("plus") + " Tambah Produk</button></div>" +
+        '<div class="panel__body panel__body--flush">' + D.table(cols, products, "Tiada produk.") + "</div></div>";
+
+      document.getElementById("add-product").addEventListener("click", function () { productModal(null); });
+      el.querySelectorAll("[data-edit]").forEach(function (b) {
+        b.addEventListener("click", function () { productModal(b.getAttribute("data-edit")); });
+      });
+      el.querySelectorAll("[data-del]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          if (!confirm("Hapus produk ini?")) return;
+          S.deleteProduct(b.getAttribute("data-del")).then(function () { D.toast("Produk dihapus.", "ok"); reload(el, "products"); })
+            .catch(function (e) { D.toast(e.message, "err"); });
+        });
+      });
+    }).catch(function (e) { el.innerHTML += err(e); });
+  };
+
+  function productModal(id) {
+    var p = id ? (cache.products || []).filter(function (x) { return x.id === id; })[0] : {};
+    p = p || {};
+    var catOpts = (cache.cats || []).map(function (c) {
+      return '<option value="' + c.id + '"' + (p.category_id === c.id ? " selected" : "") + ">" + D.esc(c.name) + "</option>";
+    }).join("");
+    var body =
+      '<div class="form-row form-row--2">' +
+      '<div><label class="f-label">Nama</label><input class="f-input" id="p-name" value="' + D.esc(p.name || "") + '"/></div>' +
+      '<div><label class="f-label">Slug</label><input class="f-input" id="p-slug" value="' + D.esc(p.slug || "") + '"/></div></div>' +
+      '<div class="form-row form-row--2">' +
+      '<div><label class="f-label">Kategori</label><select class="f-select" id="p-cat">' + catOpts + "</select></div>" +
+      '<div><label class="f-label">SKU</label><input class="f-input" id="p-sku" value="' + D.esc(p.sku || "") + '"/></div></div>' +
+      '<div class="form-row form-row--3">' +
+      '<div><label class="f-label">Harga (RM)</label><input class="f-input" id="p-price" type="number" step="0.01" value="' + (p.regular_price || 0) + '"/></div>' +
+      '<div><label class="f-label">Harga Reseller</label><input class="f-input" id="p-rprice" type="number" step="0.01" value="' + (p.reseller_price || "") + '"/></div>' +
+      '<div><label class="f-label">Stok</label><input class="f-input" id="p-stock" type="number" value="' + (p.stock == null ? 999 : p.stock) + '"/></div></div>' +
+      '<div class="form-row"><div><label class="f-label">Deskripsi</label><textarea class="f-textarea" id="p-desc">' + D.esc(p.description || "") + "</textarea></div></div>" +
+      '<div class="form-row form-row--3">' +
+      check("p-best", "Bestseller", p.is_bestseller) +
+      check("p-feat", "Featured", p.is_featured) +
+      check("p-active", "Aktif", p.is_active !== false) + "</div>" +
+      '<div class="form-row form-row--2">' +
+      check("p-auto", "Auto Delivery", p.auto_delivery !== false) +
+      '<div><label class="f-label">Nota Penghantaran</label><input class="f-input" id="p-note" value="' + D.esc(p.delivery_note || "") + '"/></div></div>' +
+      '<div class="btn-row mt-16"><button class="btn btn--primary" id="p-save">Simpan</button></div>';
+    D.openModal(id ? "Edit Produk" : "Tambah Produk", body);
+    document.getElementById("p-save").addEventListener("click", function () {
+      var payload = {
+        id: id || undefined,
+        name: val("p-name"), slug: val("p-slug") || slugify(val("p-name")),
+        category_id: val("p-cat") || null, sku: val("p-sku") || null,
+        regular_price: Number(val("p-price")), reseller_price: val("p-rprice") ? Number(val("p-rprice")) : null,
+        stock: parseInt(val("p-stock"), 10) || 0, description: val("p-desc"),
+        is_bestseller: chk("p-best"), is_featured: chk("p-feat"), is_active: chk("p-active"),
+        auto_delivery: chk("p-auto"), delivery_note: val("p-note"),
+      };
+      if (!payload.name) return D.toast("Nama diperlukan.", "err");
+      S.saveProduct(payload).then(function () { D.toast("Produk disimpan.", "ok"); D.closeModal(); D.go("products"); })
+        .catch(function (e) { D.toast(e.message, "err"); });
+    });
+  }
+
+  function check(id, label, on) {
+    return '<label class="f-check"><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + "/> " + label + "</label>";
+  }
+  function val(id) { var e = document.getElementById(id); return e ? e.value.trim() : ""; }
+  function chk(id) { var e = document.getElementById(id); return e ? e.checked : false; }
+  function slugify(s) { return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+
+  /* ------------------------------------------------------------- categories */
+  sections.categories = function (el) {
+    el.insertAdjacentHTML("beforeend", D.spinner());
+    S.getCategories().then(function (cats) {
+      cache.cats = cats;
+      var cols = [
+        { label: "Nama", render: function (r) { return "<strong>" + D.esc(r.name) + "</strong>"; } },
+        { label: "Slug", render: function (r) { return '<span class="mono">' + D.esc(r.slug) + "</span>"; } },
+        { label: "Susunan", render: function (r) { return r.sort_order || 0; } },
+        { label: "Status", render: function (r) { return r.is_active === false ? D.statusPill("suspended") : D.statusPill("active"); } },
+        { label: "", render: function (r) { return '<button class="btn btn--ghost btn--sm" data-edit="' + r.id + '">Edit</button>'; }, nowrap: true },
+      ];
+      el.innerHTML +=
+        '<div class="panel"><div class="panel__head"><div class="panel__title">Kategori</div>' +
+        '<button class="btn btn--primary btn--sm" id="add-cat">' + D.icon("plus") + " Tambah Kategori</button></div>" +
+        '<div class="panel__body panel__body--flush">' + D.table(cols, cats, "Tiada kategori.") + "</div></div>";
+      document.getElementById("add-cat").addEventListener("click", function () { catModal(null); });
+      el.querySelectorAll("[data-edit]").forEach(function (b) {
+        b.addEventListener("click", function () { catModal(b.getAttribute("data-edit")); });
+      });
+    }).catch(function (e) { el.innerHTML += err(e); });
+  };
+
+  function catModal(id) {
+    var c = id ? (cache.cats || []).filter(function (x) { return x.id === id; })[0] : {};
+    c = c || {};
+    D.openModal(id ? "Edit Kategori" : "Tambah Kategori",
+      '<div class="form-row form-row--2">' +
+      '<div><label class="f-label">Nama</label><input class="f-input" id="c-name" value="' + D.esc(c.name || "") + '"/></div>' +
+      '<div><label class="f-label">Slug</label><input class="f-input" id="c-slug" value="' + D.esc(c.slug || "") + '"/></div></div>' +
+      '<div class="form-row form-row--2">' +
+      '<div><label class="f-label">Susunan</label><input class="f-input" id="c-sort" type="number" value="' + (c.sort_order || 0) + '"/></div>' +
+      check("c-active", "Aktif", c.is_active !== false) + "</div>" +
+      '<div class="btn-row mt-16"><button class="btn btn--primary" id="c-save">Simpan</button></div>');
+    document.getElementById("c-save").addEventListener("click", function () {
+      var payload = { id: id || undefined, name: val("c-name"), slug: val("c-slug") || slugify(val("c-name")), sort_order: parseInt(val("c-sort"), 10) || 0, is_active: chk("c-active") };
+      if (!payload.name) return D.toast("Nama diperlukan.", "err");
+      S.saveCategory(payload).then(function () { D.toast("Kategori disimpan.", "ok"); D.closeModal(); D.go("categories"); })
+        .catch(function (e) { D.toast(e.message, "err"); });
+    });
+  }
+
+  /* -------------------------------------------------------------- customers */
+  sections.customers = function (el) {
+    el.insertAdjacentHTML("beforeend", D.spinner());
+    S.getCustomers().then(function (rows) {
+      var cols = [
+        { label: "Nama", render: function (r) { return "<strong>" + D.esc(r.full_name || "—") + "</strong>"; } },
+        { label: "Email", render: function (r) { return D.esc(r.email); } },
+        { label: "Telefon", render: function (r) { return D.esc(r.phone || "—"); } },
+        { label: "Daftar", render: function (r) { return D.date(r.created_at); }, nowrap: true },
+      ];
+      el.innerHTML += '<div class="panel"><div class="panel__head"><div class="panel__title">Pelanggan (' + rows.length + ')</div></div>' +
+        '<div class="panel__body panel__body--flush">' + D.table(cols, rows, "Tiada pelanggan.") + "</div></div>";
+    }).catch(function (e) { el.innerHTML += err(e); });
+  };
+
+  /* ------------------------------------------------------------------ staff */
+  sections.staff = function (el) {
+    el.insertAdjacentHTML("beforeend", D.spinner());
+    S.getStaff().then(function (rows) {
+      cache.staff = rows;
+      var cols = [
+        { label: "Nama", render: function (r) { return "<strong>" + D.esc(r.full_name || "—") + "</strong>"; } },
+        { label: "Email", render: function (r) { return D.esc(r.email); } },
+        { label: "Peranan", render: function (r) { return '<span class="pill">' + D.esc(r.role) + "</span>"; } },
+        { label: "Status", render: function (r) { return r.is_active === false ? D.statusPill("suspended") : D.statusPill("active"); } },
+        { label: "Dibuat", render: function (r) { return D.date(r.created_at); }, nowrap: true },
+        { label: "", render: function (r) {
+            return r.role === "owner" ? '<span class="text-faint" style="color:var(--db-faint);font-size:11px">owner</span>' :
+              '<button class="btn btn--ghost btn--sm" data-edit="' + r.id + '">Edit</button> <button class="btn btn--danger btn--sm" data-del="' + r.id + '">Hapus</button>';
+          }, nowrap: true },
+      ];
+      el.innerHTML +=
+        '<div class="panel"><div class="panel__head"><div class="panel__title">Akaun Staf</div>' +
+        '<button class="btn btn--primary btn--sm" id="add-staff">' + D.icon("plus") + " Cipta Staf</button></div>" +
+        '<div class="panel__body panel__body--flush">' + D.table(cols, rows, "Tiada staf.") + "</div></div>";
+      document.getElementById("add-staff").addEventListener("click", staffModalCreate);
+      el.querySelectorAll("[data-edit]").forEach(function (b) { b.addEventListener("click", function () { staffModalEdit(b.getAttribute("data-edit")); }); });
+      el.querySelectorAll("[data-del]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          if (!confirm("Hapus akaun staf ini?")) return;
+          S.deleteStaff(b.getAttribute("data-del")).then(function () { D.toast("Staf dihapus.", "ok"); reload(el, "staff"); })
+            .catch(function (e) { D.toast(e.message, "err"); });
+        });
+      });
+    }).catch(function (e) { el.innerHTML += err(e); });
+  };
+
+  function staffModalCreate() {
+    D.openModal("Cipta Akaun Staf",
+      '<div class="form-row form-row--2">' +
+      '<div><label class="f-label">Nama Penuh</label><input class="f-input" id="s-name"/></div>' +
+      '<div><label class="f-label">Email</label><input class="f-input" id="s-email" type="email"/></div></div>' +
+      '<div class="form-row form-row--3">' +
+      '<div><label class="f-label">Kata Laluan</label><input class="f-input" id="s-pass" type="password"/></div>' +
+      '<div><label class="f-label">Peranan</label><select class="f-select" id="s-role"><option value="admin">Admin</option><option value="reseller">Reseller</option></select></div>' +
+      '<div><label class="f-label">Telefon</label><input class="f-input" id="s-phone"/></div></div>' +
+      '<div class="db-alert db-alert--info">Hanya Owner boleh mencipta staf. Kata laluan disimpan dalam Supabase Auth.</div>' +
+      '<div class="btn-row"><button class="btn btn--primary" id="s-save">Cipta Akaun</button></div>');
+    document.getElementById("s-save").addEventListener("click", function () {
+      var payload = { full_name: val("s-name"), email: val("s-email"), password: val("s-pass"), role: val("s-role"), phone: val("s-phone") };
+      if (!payload.email || !payload.password) return D.toast("Email & kata laluan diperlukan.", "err");
+      S.createStaff(payload).then(function () { D.toast("Akaun staf dicipta.", "ok"); D.closeModal(); D.go("staff"); })
+        .catch(function (e) { D.toast(e.message, "err"); });
+    });
+  }
+
+  function staffModalEdit(id) {
+    var s = (cache.staff || []).filter(function (x) { return x.id === id; })[0] || {};
+    D.openModal("Edit Staf",
+      '<div class="form-row form-row--2">' +
+      '<div><label class="f-label">Nama Penuh</label><input class="f-input" id="s-name" value="' + D.esc(s.full_name || "") + '"/></div>' +
+      '<div><label class="f-label">Telefon</label><input class="f-input" id="s-phone" value="' + D.esc(s.phone || "") + '"/></div></div>' +
+      '<div class="form-row form-row--2">' +
+      '<div><label class="f-label">Peranan</label><select class="f-select" id="s-role">' +
+      opts(["admin", "reseller"], s.role) + "</select></div>" +
+      '<div style="display:flex;align-items:flex-end">' + check("s-active", "Aktif", s.is_active !== false) + "</div></div>" +
+      '<div class="btn-row mt-16"><button class="btn btn--primary" id="s-save">Simpan</button></div>');
+    document.getElementById("s-save").addEventListener("click", function () {
+      S.updateStaff({ user_id: id, full_name: val("s-name"), phone: val("s-phone"), role: val("s-role"), is_active: chk("s-active") })
+        .then(function () { D.toast("Staf dikemas kini.", "ok"); D.closeModal(); D.go("staff"); })
+        .catch(function (e) { D.toast(e.message, "err"); });
+    });
+  }
+
+  /* -------------------------------------------------------------- resellers */
+  sections.resellers = function (el) {
+    el.insertAdjacentHTML("beforeend", D.spinner());
+    S.getResellers().then(function (rows) {
+      cache.resellers = rows;
+      var cols = [
+        { label: "Perniagaan", render: function (r) { return "<strong>" + D.esc(r.business_name || (r.profile && r.profile.full_name) || "—") + "</strong>"; } },
+        { label: "Email", render: function (r) { return D.esc((r.profile && r.profile.email) || "—"); } },
+        { label: "Tier", render: function (r) { return '<span class="pill">' + D.esc(r.tier || "basic") + "</span>"; } },
+        { label: "Diskaun", render: function (r) { return (r.discount_percent || 0) + "%"; }, nowrap: true },
+        { label: "Status", render: function (r) { return r.status === "active" ? D.statusPill("active") : D.statusPill("suspended"); } },
+        { label: "", render: function (r) { return '<button class="btn btn--ghost btn--sm" data-edit="' + r.id + '">Urus</button>'; }, nowrap: true },
+      ];
+      el.innerHTML += '<div class="panel"><div class="panel__head"><div class="panel__title">Reseller</div></div>' +
+        '<div class="panel__body panel__body--flush">' + D.table(cols, rows, "Tiada reseller.") + "</div></div>";
+      el.querySelectorAll("[data-edit]").forEach(function (b) { b.addEventListener("click", function () { resellerModal(b.getAttribute("data-edit")); }); });
+    }).catch(function (e) { el.innerHTML += err(e); });
+  };
+
+  function resellerModal(id) {
+    var r = (cache.resellers || []).filter(function (x) { return x.id === id; })[0] || {};
+    D.openModal("Urus Reseller",
+      '<div class="form-row form-row--2">' +
+      '<div><label class="f-label">Nama Perniagaan</label><input class="f-input" id="r-biz" value="' + D.esc(r.business_name || "") + '"/></div>' +
+      '<div><label class="f-label">Tier</label><select class="f-select" id="r-tier">' + opts(["basic", "silver", "gold"], r.tier) + "</select></div></div>" +
+      '<div class="form-row form-row--2">' +
+      '<div><label class="f-label">Diskaun (%)</label><input class="f-input" id="r-disc" type="number" value="' + (r.discount_percent || 0) + '"/></div>' +
+      '<div><label class="f-label">Status</label><select class="f-select" id="r-status">' + opts(["active", "suspended", "pending"], r.status) + "</select></div></div>" +
+      '<div class="btn-row mt-16"><button class="btn btn--primary" id="r-save">Simpan</button></div>');
+    document.getElementById("r-save").addEventListener("click", function () {
+      S.updateReseller(id, { business_name: val("r-biz"), tier: val("r-tier"), discount_percent: Number(val("r-disc")), status: val("r-status") })
+        .then(function () { D.toast("Reseller dikemas kini.", "ok"); D.closeModal(); D.go("resellers"); })
+        .catch(function (e) { D.toast(e.message, "err"); });
+    });
+  }
+
+  /* -------------------------------------------------------------- discounts */
+  sections.discounts = function (el) {
+    el.insertAdjacentHTML("beforeend", D.spinner());
+    S.getDiscountCodes().then(function (rows) {
+      var cols = [
+        { label: "Kod", render: function (r) { return '<strong class="mono">' + D.esc(r.code) + "</strong>"; } },
+        { label: "Jenis", render: function (r) { return r.discount_type === "percent" ? r.discount_value + "%" : D.money(r.discount_value); } },
+        { label: "Min Belanja", render: function (r) { return D.money(r.min_purchase || 0); }, nowrap: true },
+        { label: "Digunakan", render: function (r) { return (r.used_count || 0) + (r.max_uses ? " / " + r.max_uses : ""); }, nowrap: true },
+        { label: "Status", render: function (r) { return r.is_active === false ? D.statusPill("expired") : D.statusPill("active"); } },
+      ];
+      el.innerHTML +=
+        '<div class="panel"><div class="panel__head"><div class="panel__title">Kod Diskaun</div>' +
+        '<button class="btn btn--primary btn--sm" id="add-dc">' + D.icon("plus") + " Tambah Kod</button></div>" +
+        '<div class="panel__body panel__body--flush">' + D.table(cols, rows, "Tiada kod diskaun.") + "</div></div>";
+      document.getElementById("add-dc").addEventListener("click", function () {
+        D.openModal("Tambah Kod Diskaun",
+          '<div class="form-row form-row--2">' +
+          '<div><label class="f-label">Kod</label><input class="f-input" id="d-code"/></div>' +
+          '<div><label class="f-label">Jenis</label><select class="f-select" id="d-type"><option value="percent">Peratus (%)</option><option value="fixed">Tetap (RM)</option></select></div></div>' +
+          '<div class="form-row form-row--3">' +
+          '<div><label class="f-label">Nilai</label><input class="f-input" id="d-val" type="number" step="0.01"/></div>' +
+          '<div><label class="f-label">Min Belanja</label><input class="f-input" id="d-min" type="number" step="0.01" value="0"/></div>' +
+          '<div><label class="f-label">Maks Guna</label><input class="f-input" id="d-max" type="number" value="500"/></div></div>' +
+          '<div class="btn-row mt-16"><button class="btn btn--primary" id="d-save">Simpan</button></div>');
+        document.getElementById("d-save").addEventListener("click", function () {
+          S.saveDiscountCode({
+            code: val("d-code").toUpperCase(), discount_type: val("d-type"),
+            discount_value: Number(val("d-val")), min_purchase: Number(val("d-min")),
+            max_uses: parseInt(val("d-max"), 10), is_active: true,
+          }).then(function () { D.toast("Kod diskaun disimpan.", "ok"); D.closeModal(); D.go("discounts"); })
+            .catch(function (e) { D.toast(e.message, "err"); });
+        });
+      });
+    }).catch(function (e) { el.innerHTML += err(e); });
+  };
+
+  /* ----------------------------------------------------------- transactions */
+  sections.transactions = function (el) {
+    el.insertAdjacentHTML("beforeend", D.spinner());
+    S.getTransactions().then(function (rows) {
+      var cols = [
+        { label: "Tarikh", render: function (r) { return D.dateTime(r.created_at); }, nowrap: true },
+        { label: "Jenis", render: function (r) { return '<span class="pill">' + D.esc(r.type || "—") + "</span>"; } },
+        { label: "Rujukan", render: function (r) { return '<span class="mono">' + D.esc(r.reference || "—") + "</span>"; } },
+        { label: "Keterangan", render: function (r) { return D.esc(r.description || "—"); } },
+        { label: "Jumlah", render: function (r) { return "<strong>" + D.money(r.amount) + "</strong>"; }, nowrap: true },
+        { label: "Status", render: function (r) { return r.status === "success" || r.status === "paid" ? D.statusPill("paid") : D.statusPill(r.status || "pending"); } },
+      ];
+      el.innerHTML += '<div class="panel"><div class="panel__head"><div class="panel__title">Transaksi</div></div>' +
+        '<div class="panel__body panel__body--flush">' + D.table(cols, rows, "Tiada transaksi.") + "</div></div>";
+    }).catch(function (e) { el.innerHTML += err(e); });
+  };
+
+  /* ------------------------------------------------------------------ audit */
+  sections.audit = function (el) {
+    el.insertAdjacentHTML("beforeend", D.spinner());
+    S.getAuditLogs().then(function (rows) {
+      var cols = [
+        { label: "Tarikh", render: function (r) { return D.dateTime(r.created_at); }, nowrap: true },
+        { label: "Pelaku", render: function (r) { return D.esc(r.actor_email || "—"); } },
+        { label: "Tindakan", render: function (r) { return '<span class="pill">' + D.esc(r.action) + "</span>"; } },
+        { label: "Entiti", render: function (r) { return D.esc((r.entity_type || "") + " " + (r.entity_id || "")); } },
+      ];
+      el.innerHTML += '<div class="panel"><div class="panel__head"><div class="panel__title">Audit Log</div></div>' +
+        '<div class="panel__body panel__body--flush">' + D.table(cols, rows, "Tiada log.") + "</div></div>";
+    }).catch(function (e) { el.innerHTML += err(e); });
+  };
+
+  /* --------------------------------------------------------------- settings */
+  sections.settings = function (el) {
+    el.insertAdjacentHTML("beforeend", D.spinner());
+    FYX.data.getSettings().then(function (s) {
+      el.innerHTML +=
+        '<div class="panel"><div class="panel__head"><div class="panel__title">Tetapan Laman</div></div>' +
+        '<div class="panel__body">' +
+        '<div class="form-row form-row--2">' +
+        '<div><label class="f-label">Nama Laman</label><input class="f-input" id="w-name" value="' + D.esc(s.site_name || "FYXITERZ") + '"/></div>' +
+        '<div><label class="f-label">Mata Wang</label><input class="f-input" id="w-cur" value="' + D.esc(s.currency || "MYR") + '"/></div></div>' +
+        '<div class="form-row form-row--2">' +
+        '<div><label class="f-label">WhatsApp</label><input class="f-input" id="w-wa" value="' + D.esc(s.whatsapp || "") + '"/></div>' +
+        '<div><label class="f-label">Telegram</label><input class="f-input" id="w-tg" value="' + D.esc(s.telegram || "") + '"/></div></div>' +
+        '<div class="form-row form-row--2">' +
+        '<div><label class="f-label">Email Sokongan</label><input class="f-input" id="w-email" value="' + D.esc(s.support_email || "") + '"/></div>' +
+        '<div><label class="f-label">Gateway Pembayaran</label><select class="f-select" id="w-pay">' +
+        opts(["chip", "toyyibpay"], s.payment_provider || "chip") + "</select></div></div>" +
+        '<div class="db-alert db-alert--info">Mod <b>QR</b>: pelanggan transfer ke QR anda, staf sahkan secara manual. Mod <b>gateway</b>: bayaran automatik (CHIP/ToyyibPay).</div>' +
+        '<div class="form-row form-row--2">' +
+        '<div><label class="f-label">Mod Pembayaran</label><select class="f-select" id="w-pmode">' +
+        opts(["qr", "gateway"], s.payment_mode || "qr") + "</select></div>" +
+        '<div><label class="f-label">Bayar Kepada</label><input class="f-input" id="w-qrpayee" value="' + D.esc(s.payment_qr_payee || "FYXITERZ") + '"/></div></div>' +
+        '<div class="form-row"><div><label class="f-label">URL Imej QR (DuitNow / bank anda)</label><input class="f-input" id="w-qrurl" value="' + D.esc(s.payment_qr_url || "") + '"/></div></div>' +
+        '<div class="form-row"><div><label class="f-label">Langkah Pembayaran (satu per baris)</label><textarea class="f-textarea" id="w-qrsteps">' +
+        D.esc(Array.isArray(s.payment_instructions) ? s.payment_instructions.join("\n") : (s.payment_instructions || "")) + "</textarea></div></div>" +
+        '<div class="form-row"><div><label class="f-label">Tagline Footer</label><textarea class="f-textarea" id="w-tag">' + D.esc(s.footer_tagline || "") + "</textarea></div></div>" +
+        '<div class="db-alert db-alert--info">Tetapan disimpan ke jadual <b>website_settings</b> (hanya Owner).</div>' +
+        '<div class="btn-row"><button class="btn btn--primary" id="w-save">Simpan Tetapan</button></div>' +
+        "</div></div>";
+      document.getElementById("w-save").addEventListener("click", function () {
+        if (!FYX.configured) return D.toast("Demo mode: tetapan memerlukan Supabase.", "err");
+        var steps = String(val("w-qrsteps") || "").split("\n")
+          .map(function (x) { return x.trim(); })
+          .filter(function (x) { return x.length; });
+        var rows = [
+          ["site_name", val("w-name")], ["currency", val("w-cur")], ["whatsapp", val("w-wa")],
+          ["telegram", val("w-tg")], ["support_email", val("w-email")], ["payment_provider", val("w-pay")],
+          ["payment_mode", val("w-pmode")], ["payment_qr_payee", val("w-qrpayee")],
+          ["payment_qr_url", val("w-qrurl")], ["payment_instructions", steps],
+          ["footer_tagline", val("w-tag")],
+        ].map(function (kv) { return { key: kv[0], value: { v: kv[1] } }; });
+        FYX.rest.insert("website_settings", rows, { upsert: true })
+          .then(function () { D.toast("Tetapan disimpan.", "ok"); })
+          .catch(function (e) { D.toast(e.message, "err"); });
+      });
+    }).catch(function (e) { el.innerHTML += err(e); });
+  };
+
+  /* ---------------------------------------------------------------- helpers */
+  function err(e) { return '<div class="db-alert db-alert--error">' + D.esc(e.message || "Ralat memuatkan data.") + "</div>"; }
+  function reload(el, key) { el.innerHTML = ""; sections[key](el); }
+
+  /* ------------------------------------------------------------------ boot */
+  D.guard(["owner"]).then(function (profile) {
+    D.setProfile(profile);
+    D.mountShell({ nav: NAV, sections: sections, default: "dashboard" });
+  }).catch(function () { /* redirected by guard */ });
+})();

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Semua Produk — FYXITERZ</title>
+  <meta name="description" content="Cari &amp; filter cheat game terbaik di FYXITERZ — update real-time." />
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-head">
+      <div class="breadcrumb">
+        <a href="index.html">Home</a> <span>/</span> <span>Katalog</span>
+      </div>
+      <h1 class="page-title">CEK PRODUK</h1>
+      <p class="page-sub" id="page-sub">Cari &amp; filter cheat terbaik — update real-time</p>
+    </div>
+
+    <section class="section">
+      <div class="cat-scroll" id="cats"></div>
+    </section>
+
+    <section class="section section--last">
+      <div class="toolbar">
+        <div class="toolbar__group" style="flex:1;min-width:220px">
+          <div class="search-field" style="flex:1">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input id="filter-search" type="text" placeholder="Cari produk..." autocomplete="off" />
+          </div>
+        </div>
+        <div class="toolbar__group">
+          <span class="count-badge" id="result-count">0 produk</span>
+          <select class="input select--sm" id="sort-select" aria-label="Susun">
+            <option value="bestseller">Paling Laris</option>
+            <option value="price-asc">Harga: Rendah → Tinggi</option>
+            <option value="price-desc">Harga: Tinggi → Rendah</option>
+            <option value="name-asc">Nama: A → Z</option>
+            <option value="newest">Terbaru</option>
+          </select>
+        </div>
+      </div>
+      <div class="product-grid" id="grid"></div>
+    </section>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/data/seed.js"></script>
+  <script src="assets/js/supabase.js"></script>
+  <script src="assets/js/storefront.js"></script>
+  <script src="assets/js/products.js"></script>
+</body>
+</html>

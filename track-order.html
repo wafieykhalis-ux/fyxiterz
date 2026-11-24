@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Track Pesanan — FYXITERZ</title>
+  <meta name="description" content="Masukkan email & kode pesanan untuk cek status real-time di FYXITERZ." />
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-head">
+      <div class="breadcrumb"><a href="index.html">Home</a><span>/</span><span>Track Pesanan</span></div>
+      <h1 class="page-title">LACAK PESANAN</h1>
+      <p class="page-sub">Masukkan email &amp; kode pesanan untuk cek status real-time</p>
+    </div>
+
+    <section class="section section--last" style="max-width:760px">
+      <div class="card">
+        <div id="track-alert" class="alert alert--error alert--hidden"></div>
+        <div class="form-grid">
+          <div>
+            <label class="field__label" for="t-email">Email</label>
+            <input class="input" id="t-email" type="email" placeholder="nama@email.com" autocomplete="email" />
+          </div>
+          <div>
+            <label class="field__label" for="t-code">Kode Pesanan</label>
+            <input class="input mono" id="t-code" type="text" placeholder="INV-XXXXXX" style="text-transform:uppercase" />
+          </div>
+          <button class="btn btn--primary btn--lg" id="track-btn">Lacak Pesanan</button>
+        </div>
+      </div>
+
+      <div id="track-result" class="mt-24"></div>
+    </section>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/data/seed.js"></script>
+  <script src="assets/js/supabase.js"></script>
+  <script src="assets/js/storefront.js"></script>
+  <script src="assets/js/tracking.js"></script>
+</body>
+</html>

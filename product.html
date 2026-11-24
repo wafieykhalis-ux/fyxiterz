@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Produk — FYXITERZ</title>
+  <meta name="description" content="Detail produk FYXITERZ — pilih pakej, masukkan email, dan terus ke pembayaran." />
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <div id="pdp-root">
+      <div class="page-head"><div class="skeleton" style="height:28px;width:220px"></div></div>
+      <section class="pdp">
+        <div class="skeleton sk-card" style="aspect-ratio:1/1;height:auto"></div>
+        <div>
+          <div class="skeleton" style="height:40px;width:70%;margin-bottom:12px"></div>
+          <div class="skeleton" style="height:16px;width:90%;margin-bottom:8px"></div>
+          <div class="skeleton" style="height:16px;width:60%"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/data/seed.js"></script>
+  <script src="assets/js/supabase.js"></script>
+  <script src="assets/js/storefront.js"></script>
+  <script>
+    (function () {
+      FYX_UI.init({ active: "products" });
+
+      var slug = FYX_UI.param("slug");
+      var root = document.getElementById("pdp-root");
+      var product = null;
+      var variants = [];
+      var selected = null;
+      var tab = "checkout";
+
+      if (!slug) {
+        root.innerHTML = '<section class="section"><div class="empty"><p>Produk tidak dinyatakan.</p><a class="btn btn--primary" href="products.html">Kembali ke katalog</a></div></section>';
+        return;
+      }
+
+      function money(n) { return FYX_UI.money(n); }
+
+      function render() {
+        var sold = Number(product.stock) === 0;
+        var soldCount = product.sales_count || 0;
+        var catName = (product.category && product.category.name) || "FYXITERZ";
+        var price = selected ? selected.price : product.regular_price;
+        var priceLabel = selected ? selected.name : "Pilih pakej";
+
+        root.innerHTML =
+          '<div class="page-head"><div class="breadcrumb">' +
+          '<a href="index.html">Home</a><span>/</span>' +
+          '<a href="products.html">Produk</a><span>/</span>' +
+          '<span>' + FYX_UI.esc(catName) + "</span></div></div>" +
+          '<section class="pdp">' +
+          '<div class="pdp__media"><img src="' + (product.image_url || FYX_UI.productImage(product)) +
+          '" alt="' + FYX_UI.esc(product.name) + '"/></div>' +
+          "<div>" +
+          '<div class="pdp__badges">' +
+          '<span class="badge-cat">' + FYX_UI.esc(catName) + "</span>" +
+          (soldCount ? '<span class="badge-sold">🔥 ' + soldCount + " terjual</span>" : "") +
+          '<span class="badge-stock">' + (sold ? "STOK HABIS" : "STOK AMAN") + "</span>" +
+          "</div>" +
+          '<h1 class="pdp__title">' + FYX_UI.esc(product.name) + "</h1>" +
+          '<p class="pdp__desc">' + FYX_UI.esc(product.description || "Produk digital FYXITERZ.") + "</p>" +
+          '<div class="pdp__tabs">' +
+          tabBtn("checkout", "Checkout") + tabBtn("fitur", "Fitur") + tabBtn("download", "Download") +
+          "</div>" +
+          '<div id="tab-body"></div>' +
+          '<div class="total-bar"><span class="total-bar__label">Total</span>' +
+          '<span class="total-bar__value">' + money(price) + "</span></div>" +
+          '<div class="btn-row mt-16">' +
+          '<button class="btn btn--primary btn--lg" id="buy-now"' + (sold ? " disabled" : "") + ">Beli Sekarang</button>" +
+          '<button class="btn btn--ghost btn--lg" id="add-cart"' + (sold ? " disabled" : "") + ">Tambah ke Bakul</button>" +
+          "</div>" +
+          '<p class="field__hint">' + (selected ? "Pakej dipilih: " + FYX_UI.esc(priceLabel) : "Sila pilih pakej di atas.") + "</p>" +
+          "</div></section>";
+
+        renderTab();
+        bind();
+      }
+
+      function tabBtn(id, label) {
+        return '<button class="pdp__tab' + (tab === id ? " is-active" : "") + '" data-tab="' + id + '">' + label + "</button>";
+      }
+
+      function renderTab() {
+        var body = document.getElementById("tab-body");
+        if (tab === "checkout") {
+          body.innerHTML =
+            '<div class="field">' +
+            '<label class="field__label" for="buyer-email">Email Penerima Key</label>' +
+            '<input class="input" id="buyer-email" type="email" placeholder="nama@email.com" value="' + FYX_UI.esc(getEmail()) + '"/>' +
+            '<p class="field__hint">Key &amp; instruksi dikirim ke email ini. Wajib valid.</p>' +
+            "</div>" +
+            '<div class="variant-head"><h3>Pilih Paket</h3><span>• ' + variants.length + " varian</span></div>" +
+            '<div class="variant-list">' +
+            (variants.length
+              ? variants.map(function (v, i) {
+                  return '<button class="variant' + (selected && selected.id === v.id ? " is-selected" : "") + '" data-idx="' + i + '">' +
+                    '<span><span class="variant__name">' + FYX_UI.esc(v.name) + "</span>" +
+                    (v.duration_label && v.duration_label !== v.name ? '<span class="variant__sub">' + FYX_UI.esc(v.duration_label) + "</span>" : "") +
+                    "</span>" +
+                    '<span class="variant__price">' + money(v.price) + "</span></button>";
+                }).join("")
+              : '<div class="alert alert--info">Tiada varian — produk ini dijual pada harga tunggal.</div>') +
+            "</div>";
+        } else if (tab === "fitur") {
+          body.innerHTML =
+            '<div class="card mt-16"><div class="card__title">Fitur Utama</div><ul class="feature-list" style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--muted)">' +
+            feature("bekerja pada Android &amp; iOS") +
+            feature("Update mingguan &amp; anti-detection") +
+            feature("Key dihantar automatik ke email") +
+            feature("Sokongan 24 jam melalui WhatsApp / Telegram") +
+            "</ul></div>";
+        } else {
+          body.innerHTML =
+            '<div class="card mt-16"><div class="card__title">Cara Terima Produk</div>' +
+            '<p style="font-size:13px;color:var(--muted);line-height:1.7">' +
+            FYX_UI.esc(product.delivery_note || "Selepas pembayaran disahkan, key &amp; instruksi akan dihantar automatik ke email anda. Sila semak folder spam jika tidak dijumpai dalam 5 minit.".replace(/&amp;/g, "&")) +
+            "</p></div>";
+        }
+      }
+
+      function feature(t) {
+        return '<li style="display:flex;gap:9px;align-items:flex-start">' + FYX_UI.icon("check", 16) + "<span>" + t + "</span></li>";
+      }
+
+      function getEmail() {
+        return sessionStorage.getItem("fyx_buyer_email") || "";
+      }
+      function setEmail(v) {
+        sessionStorage.setItem("fyx_buyer_email", v);
+      }
+
+      function bind() {
+        root.querySelectorAll(".pdp__tab").forEach(function (b) {
+          b.addEventListener("click", function () {
+            tab = b.getAttribute("data-tab");
+            render();
+          });
+        });
+        root.querySelectorAll(".variant").forEach(function (b) {
+          b.addEventListener("click", function () {
+            selected = variants[parseInt(b.getAttribute("data-idx"), 10)] || null;
+            render();
+          });
+        });
+        var email = document.getElementById("buyer-email");
+        if (email) email.addEventListener("change", function () { setEmail(email.value.trim()); });
+
+        var buy = document.getElementById("buy-now");
+        var add = document.getElementById("add-cart");
+        if (buy) buy.addEventListener("click", function () { addToCart(true); });
+        if (add) add.addEventListener("click", function () { addToCart(false); });
+      }
+
+      function addToCart(goCheckout) {
+        var emailEl = document.getElementById("buyer-email");
+        var email = (emailEl && emailEl.value.trim()) || getEmail();
+        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+          FYX_UI.toast("Sila masukkan email yang sah untuk terima key.", "err");
+          return;
+        }
+        setEmail(email);
+        FYX_UI.cart.add({
+          product_id: product.id,
+          product_slug: product.slug,
+          product_name: product.name,
+          variant_id: selected ? selected.id : null,
+          variant_name: selected ? selected.name : null,
+          unit_price: selected ? selected.price : product.regular_price,
+          image: product.image_url || FYX_UI.productImage(product),
+          quantity: 1,
+        });
+        if (goCheckout) location.href = "checkout.html";
+      }
+
+      function moneyStr(n) { return FYX_UI.money(n); }
+      void moneyStr;
+
+      FYX.data
+        .getProductBySlug(slug)
+        .then(function (p) {
+          if (!p) throw new Error("Produk tidak dijumpai.");
+          product = p;
+          return FYX.data.getVariants(p.id);
+        })
+        .then(function (vs) {
+          variants = vs || [];
+          if (variants.length) selected = variants[0];
+          render();
+        })
+        .catch(function (err) {
+          root.innerHTML = '<section class="section"><div class="empty"><p>' +
+            FYX_UI.esc(err.message || "Produk tidak dijumpai.") + "</p>" +
+            '<a class="btn btn--primary" href="products.html">Kembali ke katalog</a></div></section>';
+        });
+    })();
+  </script>
+</body>
+</html>

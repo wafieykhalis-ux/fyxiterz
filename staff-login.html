@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Portal Staf — FYXITERZ</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/dashboard.css" />
+</head>
+<body class="db">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-card__logo"><img src="assets/img/logo2.svg" alt="FYXITERZ" /></div>
+      <h1 class="login-card__title">Portal Staf</h1>
+      <p class="login-card__sub">Log masuk untuk Owner, Admin &amp; Reseller</p>
+
+      <div id="login-alert" class="db-alert db-alert--error hidden"></div>
+
+      <form id="login-form" autocomplete="on">
+        <div class="form-row">
+          <div>
+            <label class="f-label" for="email">Email</label>
+            <input class="f-input" id="email" type="email" placeholder="nama@fyxiterz.com" autocomplete="email" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label class="f-label" for="password">Kata Laluan</label>
+            <input class="f-input" id="password" type="password" placeholder="••••••••" autocomplete="current-password" required />
+          </div>
+        </div>
+        <button class="btn btn--primary btn--block" id="login-btn" type="submit" style="height:46px">Log Masuk</button>
+      </form>
+
+      <div style="display:flex;justify-content:space-between;margin-top:12px">
+        <a href="#" id="forgot" class="text-faint" style="font-size:12px;color:var(--db-faint)">Lupa kata laluan?</a>
+        <a href="index.html" style="font-size:12px;color:var(--db-faint)">← Kembali ke kedai</a>
+      </div>
+
+      <div id="demo-panel" class="hidden">
+        <div class="db-alert db-alert--warn" style="margin-top:20px">
+          <b>Demo mode.</b> Supabase belum dikonfigurasi, jadi log masuk sebenar tidak tersedia.
+          Pratonton antara muka papan pemuka di bawah (data contoh, operasi tulis dilindungi pelayan).
+        </div>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn btn--ghost btn--sm" data-demo="owner">Pratonton Owner</button>
+          <button class="btn btn--ghost btn--sm" data-demo="admin">Pratonton Admin</button>
+          <button class="btn btn--ghost btn--sm" data-demo="reseller">Pratonton Reseller</button>
+        </div>
+      </div>
+
+      <p style="margin-top:20px;font-size:11px;color:var(--db-faint);text-align:center;line-height:1.6">
+        Akses staf dipantau. Semua tindakan istimewa disahkan di pelayan (RLS + Edge Functions).
+      </p>
+    </div>
+  </div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/data/seed.js"></script>
+  <script src="assets/js/supabase.js"></script>
+  <script src="assets/js/authentication.js"></script>
+  <script>
+    (function () {
+      var D = FYX_DASH;
+      var alertEl = document.getElementById("login-alert");
+      var form = document.getElementById("login-form");
+      var btn = document.getElementById("login-btn");
+
+      function showAlert(m) { alertEl.textContent = m; alertEl.classList.remove("hidden"); }
+
+      function dest(role) {
+        return role === "owner" ? "owner.html" : role === "admin" ? "admin.html" : role === "reseller" ? "reseller.html" : "index.html";
+      }
+
+      var denied = new URLSearchParams(location.search).get("denied");
+      if (denied) showAlert("Akses ditolak. Peranan dibenarkan: " + denied + ".");
+
+      if (FYX.demo) {
+        document.getElementById("demo-panel").classList.remove("hidden");
+        Array.prototype.forEach.call(document.querySelectorAll("[data-demo]"), function (b) {
+          b.addEventListener("click", function () {
+            D.auth.demoLogin(b.getAttribute("data-demo")).then(function (p) { location.href = dest(p.role); });
+          });
+        });
+      }
+
+      // already signed in?
+      D.auth.profile().then(function (p) {
+        if (p && p.role && p.role !== "customer") location.href = dest(p.role);
+      });
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        alertEl.classList.add("hidden");
+        var email = document.getElementById("email").value.trim();
+        var password = document.getElementById("password").value;
+        if (!email || !password) return showAlert("Sila masukkan email dan kata laluan.");
+        btn.disabled = true; btn.textContent = "Mengesahkan...";
+        D.auth
+          .login(email, password)
+          .then(function () {
+            return D.auth.profile();
+          })
+          .then(function (p) {
+            if (!p || !p.role || p.role === "customer") throw new Error("Akaun ini tiada akses staf.");
+            if (p.is_active === false) throw new Error("Akaun ini telah digantung.");
+            location.href = dest(p.role);
+          })
+          .catch(function (err) {
+            showAlert(err.message || "Log masuk gagal.");
+          })
+          .finally(function () {
+            btn.disabled = false; btn.textContent = "Log Masuk";
+          });
+      });
+
+      document.getElementById("forgot").addEventListener("click", function (e) {
+        e.preventDefault();
+        var email = document.getElementById("email").value.trim();
+        if (!email) return showAlert("Masukkan email anda dahulu.");
+        D.auth.resetPassword(email)
+          .then(function () { D.toast("Pautan tetapan semula dihantar ke email.", "ok"); })
+          .catch(function (err) { showAlert(err.message); });
+      });
+    })();
+  </script>
+</body>
+</html>
