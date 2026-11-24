@@ -74,6 +74,7 @@ Deno.serve(async (req) => {
       paid_at: order.paid_at,
       completed_at: order.completed_at,
       items: (items ?? []).map((i) => ({
+        id: i.id,
         product_name: i.product_name,
         variant_name: i.variant_name,
         quantity: i.quantity,

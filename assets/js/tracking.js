@@ -66,10 +66,17 @@
       })
       .join("");
 
+    var itemMap = {};
+    (order.items || []).forEach(function (i) {
+      if (i.id) itemMap[i.id] = i;
+    });
+
     var deliveries = (order.deliveries && order.deliveries.length)
       ? '<div class="card mt-16"><div class="card__title">Penghantaran</div>' +
         order.deliveries.map(function (d) {
-          return '<div class="summary-row"><span>' + FYX_UI.esc(d.product_name) + '</span><b class="mono">' + FYX_UI.esc(d.delivered_content || "—") + "</b></div>";
+          var it = itemMap[d.order_item_id] || {};
+          var label = it.product_name ? FYX_UI.esc(it.product_name) + (it.variant_name ? " — " + FYX_UI.esc(it.variant_name) : "") : "Item";
+          return '<div class="summary-row"><span>' + label + '</span><b class="mono" style="white-space:pre-wrap;word-break:break-word;text-align:right;max-width:70%">' + FYX_UI.esc(d.delivered_content || "—") + "</b></div>";
         }).join("") + "</div>"
       : "";
 

@@ -139,8 +139,13 @@
   function orderModal(id) {
     var o = (cache.orders || []).filter(function (x) { return x.id === id; })[0];
     if (!o) return;
-    var items = (o.order_items || o.items || []).map(function (i) {
+    var items = (o.order_items || o.items || []);
+    var itemRows = items.map(function (i) {
       return '<div class="summary-row"><span>' + D.esc(i.product_name) + (i.variant_name ? " — " + D.esc(i.variant_name) : "") + " x" + i.quantity + "</span><b>" + D.money(i.subtotal) + "</b></div>";
+    }).join("");
+    var deliveryInputs = items.map(function (i, idx) {
+      return '<div style="margin-top:12px"><label class="f-label">' + D.esc(i.product_name) + (i.variant_name ? " — " + D.esc(i.variant_name) : "") + '</label>' +
+        '<textarea class="f-textarea" id="dlv-' + idx + '" rows="3" placeholder="Tampal key / kandungan sebenar di sini..."></textarea></div>';
     }).join("");
     var body =
       '<div class="summary-row"><span>Pelanggan</span><b>' + D.esc(o.customer_name) + "</b></div>" +
@@ -148,7 +153,7 @@
       '<div class="summary-row"><span>WhatsApp</span><b>' + D.esc(o.customer_whatsapp || "—") + "</b></div>" +
       (o.game_id ? '<div class="summary-row"><span>Game ID</span><b>' + D.esc(o.game_id) + "</b></div>" : "") +
       (o.server_id ? '<div class="summary-row"><span>Server ID</span><b>' + D.esc(o.server_id) + "</b></div>" : "") +
-      '<div class="card mt-16" style="background:var(--db-bg)"><div class="card__title">Item</div>' + items + "</div>" +
+      '<div class="card mt-16" style="background:var(--db-bg)"><div class="card__title">Item</div>' + itemRows + "</div>" +
       '<div class="summary-row summary-row--total"><span>Jumlah</span><b>' + D.money(o.total) + "</b></div>" +
       '<div class="form-row form-row--2 mt-16">' +
       '<div><label class="f-label">Status Pesanan</label><select class="f-select" id="om-status">' +
@@ -156,8 +161,11 @@
       '<div><label class="f-label">Status Bayaran</label><select class="f-select" id="om-payment">' +
       opts(["unpaid", "pending", "paid", "failed", "expired", "refunded"], o.payment_status) + "</select></div>" +
       "</div>" +
-      '<div class="btn-row mt-16"><button class="btn btn--primary" id="om-save">Simpan Status</button>' +
-      '<button class="btn btn--ghost" id="om-deliver">Proses Penghantaran</button></div>';
+      '<div class="card mt-16"><div class="card__title">Hantar Key ke Pembeli</div>' +
+      '<div class="text-faint" style="font-size:12px;margin-bottom:4px">Tampal key sebenar dari stok/pembekal untuk setiap item. Pembeli akan nampak key ini di halaman jejak pesanan.</div>' +
+      deliveryInputs +
+      '<button class="btn btn--primary mt-12" id="om-deliver">Hantar Key & Selesaikan Pesanan</button></div>' +
+      '<div class="btn-row mt-16"><button class="btn btn--ghost" id="om-save">Simpan Status Sahaja</button></div>';
     D.openModal("Pesanan " + o.order_code, body);
     document.getElementById("om-save").addEventListener("click", function () {
       S.updateOrder(o.id, {
@@ -168,8 +176,14 @@
     });
     document.getElementById("om-deliver").addEventListener("click", function () {
       if (!FYX.configured) return D.toast("Demo mode: penghantaran memerlukan backend.", "err");
-      FYX.invoke("process-delivery", { order_id: o.id })
-        .then(function () { D.toast("Penghantaran diproses.", "ok"); D.closeModal(); D.go("orders"); })
+      var dlvItems = items.map(function (i, idx) {
+        return { order_item_id: i.id, product_name: i.product_name, delivered_content: (document.getElementById("dlv-" + idx) || {}).value };
+      });
+      S.saveDeliveries(o.id, dlvItems, o.customer_email)
+        .then(function () {
+          return S.updateOrder(o.id, { status: "completed", payment_status: "paid" });
+        })
+        .then(function () { D.toast("Key dihantar ke pembeli. Pesanan selesai.", "ok"); D.closeModal(); D.go("orders"); })
         .catch(function (e) { D.toast(e.message, "err"); });
     });
   }

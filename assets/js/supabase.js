@@ -705,6 +705,35 @@ window.FYX = (function () {
     return Promise.resolve(true);
   }
 
+  // Save the REAL delivery content (e.g. license key) entered by staff.
+  // items: [{ order_item_id, product_name, delivered_content }]
+  function staffSaveDeliveries(orderId, items, sentTo) {
+    if (!configured) return Promise.reject(new Error("Backend diperlukan untuk simpan penghantaran."));
+    var valid = (items || []).filter(function (i) {
+      return i && i.order_item_id && (i.delivered_content || "").trim().length > 0;
+    });
+    if (!valid.length) return Promise.reject(new Error("Sila masukkan kandungan penghantaran untuk sekurang-kurangnya satu item."));
+    var now = new Date().toISOString();
+    var itemIds = valid.map(function (i) { return i.order_item_id; });
+    // Replace any previous delivery for these items (delete then insert).
+    return restDelete("deliveries", "order_item_id=in.(" + itemIds.join(",") + ")")
+      .then(function () {
+        var rows = valid.map(function (i) {
+          return {
+            order_id: orderId,
+            order_item_id: i.order_item_id,
+            delivered_content: i.delivered_content.trim(),
+            delivery_type: "manual",
+            status: "sent",
+            sent_at: now,
+            sent_to: sentTo || null,
+          };
+        });
+        return restInsert("deliveries", rows, { upsert: false });
+      })
+      .then(function () { return true; });
+  }
+
   function staffGetCustomers() {
     if (configured) return restGet("profiles", "select=id,email,full_name,phone,role,is_active,created_at&order=created_at.desc&limit=300");
     // derive from demo orders + a couple of seeded staff rows
@@ -948,6 +977,7 @@ window.FYX = (function () {
       saveCategory: staffSaveCategory,
       getOrders: staffGetOrders,
       updateOrder: staffUpdateOrder,
+      saveDeliveries: staffSaveDeliveries,
       getCustomers: staffGetCustomers,
       getStaff: staffGetStaff,
       createStaff: staffCreateStaff,
