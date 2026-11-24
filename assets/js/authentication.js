@@ -36,6 +36,7 @@ window.FYX_DASH = (function () {
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a1 1 0 01-1 1H7a1 1 0 01-1-1V6"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
     refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20"/></svg>',
   };
 
   function icon(n) { return ICONS[n] || ""; }
@@ -191,8 +192,8 @@ window.FYX_DASH = (function () {
       '<div><div class="topbar__title">' + esc(nav.label || "Dashboard") + "</div>" +
       '<div class="topbar__sub">FYXITERZ Console • ' + esc((p.role || "")) + "</div></div></div>" +
       '<div class="topbar__right">' +
-      '<a class="btn btn--ghost btn--sm" href="index.html">Lihat Kedai</a>' +
-      '<button class="btn btn--danger btn--sm" id="logout-btn">' + "Log Keluar" + "</button>" +
+      '<a class="btn btn--ghost btn--sm" href="index.html" title="Lihat Kedai">' + icon("globe") + '<span class="btn-label">Lihat Kedai</span></a>' +
+      '<button class="btn btn--danger btn--sm" id="logout-btn" title="Log Keluar">' + icon("logout") + '<span class="btn-label">Log Keluar</span></button>' +
       '<div class="userchip"><span class="avatar">' + esc((p.full_name || p.email || "?").charAt(0)) + "</span>" +
       '<span class="userchip__name">' + esc(p.full_name || p.email) + "</span></div>" +
       "</div>";
