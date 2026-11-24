@@ -1,6 +1,6 @@
 -- =============================================================================
 -- FYXITERZ — setup_all.sql
--- ONE-PASTE setup: runs every migration in order (0000 -> 0007).
+-- ONE-PASTE setup: runs every migration in order (0000 -> 0009).
 -- Paste this whole file into the Supabase SQL Editor and press Run.
 --
 --   0000_preflight  move aside any clashing tables left over from testing
@@ -11,6 +11,7 @@
 --   0005_payment_method   payment_method columns
 --   0006_payment_settings QR / payment settings keys
 --   0007_grants     explicit anon / authenticated / service_role privileges
+--   0009_storage    public "product-images" bucket + staff upload policies
 --
 -- Note: 0008_repair_legacy_profiles.sql is NOT part of this file. It is a
 -- one-time repair for a project that was set up earlier with the old
@@ -1414,3 +1415,47 @@ alter default privileges in schema public
   grant all on sequences to service_role;
 alter default privileges in schema public
   grant all on functions to service_role;
+
+-- >>>>>>>>>>>>>>>>>>>>  0009_storage.sql  <<<<<<<<<<<<<<<<<<<<
+-- =============================================================================
+-- FYXITERZ — 0009_storage.sql
+-- Supabase Storage bucket for product images + access policies.
+--
+-- Creates a PUBLIC bucket named "product-images" so uploaded images are served
+-- straight from /storage/v1/object/public/product-images/... . Only staff
+-- (owner / admin) may upload, replace or delete files; everyone may read.
+-- =============================================================================
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'product-images',
+  'product-images',
+  true,
+  5242880,
+  array['image/png','image/jpeg','image/webp','image/gif','image/svg+xml']
+)
+on conflict (id) do update
+  set public             = true,
+      file_size_limit    = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists product_images_public_read on storage.objects;
+create policy product_images_public_read on storage.objects
+  for select to anon, authenticated
+  using (bucket_id = 'product-images');
+
+drop policy if exists product_images_staff_insert on storage.objects;
+create policy product_images_staff_insert on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'product-images' and public.is_staff());
+
+drop policy if exists product_images_staff_update on storage.objects;
+create policy product_images_staff_update on storage.objects
+  for update to authenticated
+  using (bucket_id = 'product-images' and public.is_staff())
+  with check (bucket_id = 'product-images' and public.is_staff());
+
+drop policy if exists product_images_staff_delete on storage.objects;
+create policy product_images_staff_delete on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'product-images' and public.is_staff());

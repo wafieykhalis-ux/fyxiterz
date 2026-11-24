@@ -211,6 +211,12 @@
       '<div><label class="f-label">Harga Reseller</label><input class="f-input" id="p-rprice" type="number" step="0.01" value="' + (p.reseller_price || "") + '"/></div>' +
       '<div><label class="f-label">Stok</label><input class="f-input" id="p-stock" type="number" value="' + (p.stock == null ? 999 : p.stock) + '"/></div></div>' +
       '<div class="form-row"><div><label class="f-label">Deskripsi</label><textarea class="f-textarea" id="p-desc">' + D.esc(p.description || "") + "</textarea></div></div>" +
+      '<div class="form-row"><div><label class="f-label">Imej Produk</label>' +
+      '<div style="display:flex;gap:12px;align-items:center">' +
+      '<img id="p-preview" src="' + D.esc(p.image_url || "") + '" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--db-line);background:#0b1220"/>' +
+      '<input class="f-input" id="p-image" value="' + D.esc(p.image_url || "") + '" placeholder="URL imej atau muat naik"/>' +
+      '<input type="file" id="p-file" accept="image/*" style="display:none"/>' +
+      '<button class="btn btn--ghost btn--sm" id="p-upload" type="button">Muat Naik</button></div></div>' +
       '<div class="form-row form-row--3">' +
       check("p-best", "Bestseller", p.is_bestseller) +
       check("p-feat", "Featured", p.is_featured) +
@@ -220,6 +226,23 @@
       '<div><label class="f-label">Nota Penghantaran</label><input class="f-input" id="p-note" value="' + D.esc(p.delivery_note || "") + '"/></div></div>' +
       '<div class="btn-row mt-16"><button class="btn btn--primary" id="p-save">Simpan</button></div>';
     D.openModal(id ? "Edit Produk" : "Tambah Produk", body);
+
+    var fileInput = document.getElementById("p-file");
+    document.getElementById("p-upload").addEventListener("click", function () { fileInput.click(); });
+    fileInput.addEventListener("change", function () {
+      var f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      D.toast("Memuat naik imej...");
+      S.uploadImage(f).then(function (url) {
+        document.getElementById("p-image").value = url;
+        document.getElementById("p-preview").src = url;
+        D.toast("Imej dimuat naik.", "ok");
+      }).catch(function (e) { D.toast(e.message, "err"); });
+    });
+    document.getElementById("p-image").addEventListener("input", function () {
+      document.getElementById("p-preview").src = this.value;
+    });
+
     document.getElementById("p-save").addEventListener("click", function () {
       var payload = {
         id: id || undefined,
@@ -227,6 +250,7 @@
         category_id: val("p-cat") || null, sku: val("p-sku") || null,
         regular_price: Number(val("p-price")), reseller_price: val("p-rprice") ? Number(val("p-rprice")) : null,
         stock: parseInt(val("p-stock"), 10) || 0, description: val("p-desc"),
+        image_url: val("p-image") || null,
         is_bestseller: chk("p-best"), is_featured: chk("p-feat"), is_active: chk("p-active"),
         auto_delivery: chk("p-auto"), delivery_note: val("p-note"),
       };

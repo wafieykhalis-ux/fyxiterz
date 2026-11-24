@@ -636,6 +636,35 @@ window.FYX = (function () {
     return Promise.resolve(true);
   }
 
+  /* Upload an image file to the product-images bucket; resolves to a public URL. */
+  function uploadProductImage(file) {
+    if (!configured) return Promise.reject(new Error("Demo mode: muat naik gambar perlukan Supabase."));
+    if (!file) return Promise.reject(new Error("Tiada fail dipilih."));
+    if (file.size > 5 * 1024 * 1024) return Promise.reject(new Error("Gambar terlalu besar (maks 5 MB)."));
+    var bucket = (window.FYX_CONFIG && window.FYX_CONFIG.STORAGE_BUCKET) || "product-images";
+    var ext = ((file.name || "").match(/\.[a-z0-9]+$/i) || [".png"])[0].toLowerCase();
+    var path = "products/" + uuidv4() + ext;
+    var token = (session && session.access_token) || KEY;
+    return fetch(BASE + "/storage/v1/object/" + bucket + "/" + path, {
+      method: "POST",
+      headers: {
+        apikey: KEY,
+        Authorization: "Bearer " + token,
+        "Content-Type": file.type || "application/octet-stream",
+        "cache-control": "3600",
+        "x-upsert": "true",
+      },
+      body: file,
+    }).then(function (r) {
+      if (!r.ok) {
+        return r.text().then(function () {
+          throw new Error("Gagal memuat naik gambar (" + r.status + ").");
+        });
+      }
+      return BASE + "/storage/v1/object/public/" + bucket + "/" + path;
+    });
+  }
+
   function staffSaveCategory(c) {
     if (configured) {
       if (c.id) return restPatch("categories", "id=eq." + c.id, c).then(first);
@@ -914,6 +943,7 @@ window.FYX = (function () {
       getProducts: staffGetProducts,
       saveProduct: staffSaveProduct,
       deleteProduct: staffDeleteProduct,
+      uploadImage: uploadProductImage,
       getCategories: staffGetCategoriesSafe,
       saveCategory: staffSaveCategory,
       getOrders: staffGetOrders,
