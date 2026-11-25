@@ -59,7 +59,7 @@ window.FYX_DASH = (function () {
     var wrap = document.querySelector(".toast-wrap");
     if (!wrap) { wrap = document.createElement("div"); wrap.className = "toast-wrap"; document.body.appendChild(wrap); }
     var t = document.createElement("div");
-    t.className = "toast" + (type === "ok" ? " toast--ok" : "");
+    t.className = "toast" + (type === "ok" ? " toast--ok" : type === "err" ? " toast--err" : "");
     t.textContent = msg;
     wrap.appendChild(t);
     setTimeout(function () { t.style.transition = "opacity .3s"; t.style.opacity = "0"; setTimeout(function () { t.remove(); }, 320); }, 3200);
@@ -87,6 +87,7 @@ window.FYX_DASH = (function () {
     },
     logout: function () {
       DemoSession.clear();
+      try { sessionStorage.removeItem(SESSION_ROLE_KEY); } catch (e) {}
       return FYX.auth.signOut().then(function () { location.href = "staff-login.html"; });
     },
     profile: function () {

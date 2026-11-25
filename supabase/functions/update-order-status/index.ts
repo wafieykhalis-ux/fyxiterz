@@ -25,7 +25,8 @@ const ORDER_STATUSES = [
   'processing',
   'completed',
   'cancelled',
-  'refunded',
+  'expired',
+  'failed',
 ];
 const PAYMENT_STATUSES = [
   'unpaid',

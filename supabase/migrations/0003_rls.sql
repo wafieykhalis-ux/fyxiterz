@@ -191,7 +191,7 @@ create policy deliveries_staff_all on public.deliveries
   with check (public.is_staff());
 
 -- =============================================================================
--- discount_codes — staff write, select via service role only (no anon/self)
+-- discount_codes — staff read + write (no anon/self)
 -- =============================================================================
 drop policy if exists discount_codes_staff_insert on public.discount_codes;
 create policy discount_codes_staff_insert on public.discount_codes
@@ -207,6 +207,12 @@ create policy discount_codes_staff_update on public.discount_codes
 drop policy if exists discount_codes_staff_delete on public.discount_codes;
 create policy discount_codes_staff_delete on public.discount_codes
   for delete to authenticated
+  using (public.is_staff());
+
+-- Staff (owner/admin) must be able to list codes in the dashboard.
+drop policy if exists discount_codes_staff_select on public.discount_codes;
+create policy discount_codes_staff_select on public.discount_codes
+  for select to authenticated
   using (public.is_staff());
 
 -- Explicit (documentary) service-role read; service_role already bypasses RLS.

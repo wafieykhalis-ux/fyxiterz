@@ -697,7 +697,7 @@ window.FYX = (function () {
     var list = demoOrders().map(function (o) {
       if (o.id !== orderId && o.order_code !== orderId) return o;
       var next = Object.assign({}, o, patch);
-      if (patch.status === "paid" && !next.paid_at) next.paid_at = nowIso();
+      if (patch.payment_status === "paid" && !next.paid_at) next.paid_at = nowIso();
       if (patch.status === "completed" && !next.completed_at) next.completed_at = nowIso();
       return next;
     });
@@ -809,6 +809,11 @@ window.FYX = (function () {
       total_resellers: 1,
       total_products: demoProducts().length,
       low_stock_products: demoProducts().filter(function (p) { return p.stock > 0 && p.stock <= 10; }).length,
+      low_stock_list: demoProducts()
+        .filter(function (p) { return p.stock > 0 && p.stock <= 10; })
+        .sort(function (a, b) { return a.stock - b.stock; })
+        .slice(0, 10)
+        .map(function (p) { return { name: p.name, stock: p.stock }; }),
       recent_orders: orders.slice(0, 8),
       sales_by_day: Object.keys(byDay).sort().slice(-14).map(function (d) { return { day: d, total: round2(byDay[d]) }; }),
       top_products: top.map(function (p) { return { name: p.name, sales_count: p.sales_count, price: p.regular_price }; }),

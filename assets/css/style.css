@@ -1572,6 +1572,7 @@ button.variant:hover:not(.is-selected) {
 
 /* ============================================================ responsive */
 @media (max-width: 767px) {
+  .search-mobile { display: block; }
   .search-desktop { display: none !important; }
   .nav-links-desktop { display: none !important; }
   .bottom-nav { display: flex !important; }

@@ -445,6 +445,7 @@ table.tbl .nowrap { white-space: nowrap; }
   animation: tin .25s ease;
 }
 .toast--ok { border-left-color: var(--ok); }
+.toast--err { border-left-color: var(--db-accent); }
 @keyframes tin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* --------------------------------------------------------------- loader */

@@ -125,6 +125,15 @@ Deno.serve(async (req) => {
       revenueByCategory = [];
     }
 
+    // --- Low-stock list (name + stock) for the dashboard panel ----------------
+    const { data: lowStockList } = await admin
+      .from('products')
+      .select('name, stock')
+      .lte('stock', LOW_STOCK_THRESHOLD)
+      .eq('is_active', true)
+      .order('stock', { ascending: true })
+      .limit(10);
+
     const payload: Record<string, unknown> = {
       total_sales: totalSales,
       total_orders: totalOrders,
@@ -135,6 +144,7 @@ Deno.serve(async (req) => {
       total_resellers: totalResellers,
       total_products: totalProducts,
       low_stock_products: lowStockProducts,
+      low_stock_list: lowStockList ?? [],
       recent_orders: recentOrders ?? [],
       sales_by_day: salesByDay,
       top_products: topProducts ?? [],

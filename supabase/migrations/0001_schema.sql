@@ -113,7 +113,7 @@ create table if not exists public.orders (
                       check (status in ('pending','paid','processing','completed','cancelled','expired','failed')),
   payment_status    text not null default 'unpaid'
                       check (payment_status in ('unpaid','pending','paid','failed','expired','refunded')),
-  reseller_id       uuid references public.profiles(id) on delete set null,
+  reseller_id       uuid,  -- FK -> public.reseller_accounts(id); added after that table (see below)
   notes             text,
   metadata          jsonb not null default '{}',
   created_at        timestamptz default now(),
@@ -222,6 +222,17 @@ create table if not exists public.reseller_accounts (
   created_at       timestamptz default now(),
   updated_at       timestamptz default now()
 );
+
+-- orders.reseller_id points at the reseller ACCOUNT, not the profile: the app
+-- stores reseller_accounts.id here and RLS compares it against reseller_accounts.
+-- Added here because reseller_accounts is created after orders.
+do $$
+begin
+  alter table public.orders drop constraint if exists orders_reseller_id_fkey;
+  alter table public.orders
+    add constraint orders_reseller_id_fkey
+    foreign key (reseller_id) references public.reseller_accounts(id) on delete set null;
+end $$;
 
 -- =============================================================================
 -- reseller_prices

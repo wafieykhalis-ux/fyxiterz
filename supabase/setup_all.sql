@@ -17,6 +17,11 @@
 -- one-time repair for a project that was set up earlier with the old
 -- single-column preflight and ended up with a legacy `profiles` table. A fresh
 -- run of this file (with the fixed preflight above) never needs it.
+--
+-- Note: 0010_fix_bugs.sql is also NOT part of this file. It is a corrective
+-- migration for databases created before the orders.reseller_id foreign key and
+-- the discount_codes staff-read policy were fixed in 0001/0003. A fresh run of
+-- this file already contains both fixes.
 -- =============================================================================
 
 -- >>>>>>>>>>>>>>>>>>>>  0000_preflight.sql  <<<<<<<<<<<<<<<<<<<<
@@ -214,7 +219,7 @@ create table if not exists public.orders (
                       check (status in ('pending','paid','processing','completed','cancelled','expired','failed')),
   payment_status    text not null default 'unpaid'
                       check (payment_status in ('unpaid','pending','paid','failed','expired','refunded')),
-  reseller_id       uuid references public.profiles(id) on delete set null,
+  reseller_id       uuid,  -- FK -> public.reseller_accounts(id); added after that table (see below)
   notes             text,
   metadata          jsonb not null default '{}',
   created_at        timestamptz default now(),
@@ -323,6 +328,17 @@ create table if not exists public.reseller_accounts (
   created_at       timestamptz default now(),
   updated_at       timestamptz default now()
 );
+
+-- orders.reseller_id points at the reseller ACCOUNT, not the profile: the app
+-- stores reseller_accounts.id here and RLS compares it against reseller_accounts.
+-- Added here because reseller_accounts is created after orders.
+do $$
+begin
+  alter table public.orders drop constraint if exists orders_reseller_id_fkey;
+  alter table public.orders
+    add constraint orders_reseller_id_fkey
+    foreign key (reseller_id) references public.reseller_accounts(id) on delete set null;
+end $$;
 
 -- =============================================================================
 -- reseller_prices
@@ -960,7 +976,7 @@ create policy deliveries_staff_all on public.deliveries
   with check (public.is_staff());
 
 -- =============================================================================
--- discount_codes — staff write, select via service role only (no anon/self)
+-- discount_codes — staff read + write (no anon/self)
 -- =============================================================================
 drop policy if exists discount_codes_staff_insert on public.discount_codes;
 create policy discount_codes_staff_insert on public.discount_codes
@@ -976,6 +992,12 @@ create policy discount_codes_staff_update on public.discount_codes
 drop policy if exists discount_codes_staff_delete on public.discount_codes;
 create policy discount_codes_staff_delete on public.discount_codes
   for delete to authenticated
+  using (public.is_staff());
+
+-- Staff (owner/admin) must be able to list codes in the dashboard.
+drop policy if exists discount_codes_staff_select on public.discount_codes;
+create policy discount_codes_staff_select on public.discount_codes
+  for select to authenticated
   using (public.is_staff());
 
 -- Explicit (documentary) service-role read; service_role already bypasses RLS.
