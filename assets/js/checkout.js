@@ -37,7 +37,7 @@
     linesEl.innerHTML = items
       .map(function (i, idx) {
         return (
-          '<div class="cart-line">' +
+          '<div class="cart-line" data-idx="' + idx + '">' +
           '<div class="cart-line__thumb"><img src="' + (i.image || "") + '" alt=""/></div>' +
           '<div class="cart-line__info"><div class="cart-line__name">' + FYX_UI.esc(i.product_name) + "</div>" +
           '<div class="cart-line__sub">' + (i.variant_name ? FYX_UI.esc(i.variant_name) + " • " : "") + FYX_UI.money(i.unit_price) + "</div></div>" +
@@ -64,8 +64,9 @@
     });
     linesEl.querySelectorAll('[data-act="rm"]').forEach(function (b) {
       b.addEventListener("click", function () {
-        var idx = parseInt(b.parentNode.getAttribute("data-idx"), 10);
+        var idx = parseInt(b.closest(".cart-line").getAttribute("data-idx"), 10);
         var it = FYX_UI.cart.list()[idx];
+        if (!it) return;
         FYX_UI.cart.remove(it.product_id, it.variant_id);
         state.discount = null;
         renderLines();
